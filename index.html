@@ -453,11 +453,18 @@
             return sign + String(h) + (m ? ':' + String(m).padStart(2, '0') : '');
         }
 
-        let lastEditedId = null;
-
         // ---- Main view ----
+        function updateUrl(sourceZone, timeVal) {
+            const tz = sourceZone.tz === '__fixed__'
+                ? 'fixed' + formatFixedOffset(sourceZone.fixedOffset || 0)
+                : sourceZone.tz;
+            const newUrl = location.pathname
+                + '?tz=' + encodeURIComponent(tz)
+                + '&t=' + encodeURIComponent(timeVal);
+            history.replaceState(null, '', newUrl);
+        }
+
         function updateAll(sourceId) {
-            lastEditedId = sourceId;
             const input = document.getElementById('t_' + sourceId);
             const val = input.value.replace(/[^0-9:]/g, '');
             const match = val.match(/^(\d{1,2}):(\d{2})$/);
@@ -480,6 +487,8 @@
                 const m = String(localMinutes % 60).padStart(2, '0');
                 document.getElementById('t_' + zone.id).value = h + ':' + m;
             });
+
+            updateUrl(source, input.value);
         }
 
         function setNow() {
@@ -692,18 +701,8 @@
         }
 
         function shareLink() {
-            const zone = lastEditedId ? zones.find(z => z.id === lastEditedId) : zones[0];
-            if (!zone) return;
-            const input = document.getElementById('t_' + zone.id);
-            if (!input || !input.value.match(/^\d{2}:\d{2}$/)) return;
-
-            const tz = zone.tz === '__fixed__'
-                ? 'fixed' + formatFixedOffset(zone.fixedOffset || 0)
-                : zone.tz;
-            const url = location.origin + location.pathname
-                + '?tz=' + encodeURIComponent(tz)
-                + '&t=' + encodeURIComponent(input.value);
-
+            const url = location.href;
+            if (!location.search) return showToast('Set a time first');
             if (navigator.clipboard) {
                 navigator.clipboard.writeText(url).then(() => showToast('Link copied'));
             } else {
