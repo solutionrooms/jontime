@@ -488,7 +488,8 @@
                 document.getElementById('t_' + zone.id).value = h + ':' + m;
             });
 
-            updateUrl(source, input.value);
+            const paddedTime = String(hours).padStart(2, '0') + ':' + String(minutes).padStart(2, '0');
+            updateUrl(source, paddedTime);
         }
 
         function setNow() {
