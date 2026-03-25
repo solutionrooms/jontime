@@ -526,13 +526,24 @@
                         '<div class="label-name">' + escHtml(zone.label) + '</div>' +
                     '</div>' +
                     '<div class="input-col">' +
-                        '<input type="text" class="time-input" id="t_' + zone.id + '" placeholder="HH:MM" maxlength="5" />' +
+                        '<input type="text" inputmode="numeric" class="time-input" id="t_' + zone.id + '" placeholder="HH:MM" maxlength="5" />' +
                         '<span class="utc-offset">' + formatOffset(offset) + '</span>' +
                     '</div>';
                 container.appendChild(row);
 
                 const input = row.querySelector('input');
-                input.addEventListener('input', function () { updateAll(zone.id); });
+                input.addEventListener('input', function (e) {
+                    // Auto-insert colon after 2 digits (not on deletion)
+                    if (e.inputType !== 'deleteContentBackward' && e.inputType !== 'deleteContentForward') {
+                        const digits = this.value.replace(/[^0-9]/g, '');
+                        if (digits.length >= 3 && !this.value.includes(':')) {
+                            this.value = digits.slice(0, 2) + ':' + digits.slice(2, 4);
+                        } else if (digits.length === 2 && !this.value.includes(':')) {
+                            this.value = digits + ':';
+                        }
+                    }
+                    updateAll(zone.id);
+                });
                 input.addEventListener('keydown', function (e) {
                     if (e.metaKey || e.ctrlKey || e.key === 'Tab' || e.key === 'Shift' || e.key === 'Escape') return;
                     if (this.dataset.fresh !== '0') {
