@@ -239,6 +239,43 @@
             color: #d0d0e8;
         }
         .done-btn:hover { background: #6a4c9c; }
+        .btn-row {
+            display: flex;
+            gap: 10px;
+            margin-top: 24px;
+            justify-content: center;
+        }
+        .share-btn {
+            background: #1a3a5c;
+            color: #8888cc;
+            border: none;
+            padding: 8px 22px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 12px;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            transition: background 0.2s;
+        }
+        .share-btn:hover { background: #224870; }
+        .share-btn:active { background: #153050; }
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #533483;
+            color: #e0e0e0;
+            padding: 8px 20px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-family: inherit;
+            opacity: 0;
+            transition: opacity 0.3s;
+            pointer-events: none;
+        }
+        .toast.show { opacity: 1; }
     </style>
 </head>
 <body>
@@ -249,8 +286,12 @@
         </div>
         <div id="main-view">
             <div id="zones"></div>
-            <button class="now-btn" onclick="setNow()">now</button>
+            <div class="btn-row">
+                <button class="now-btn" onclick="setNow()">now</button>
+                <button class="share-btn" onclick="shareLink()">link</button>
+            </div>
         </div>
+        <div id="toast" class="toast"></div>
         <div id="settings-view">
             <div id="settings-list"></div>
             <div class="settings-bottom-btns">
@@ -412,8 +453,11 @@
             return sign + String(h) + (m ? ':' + String(m).padStart(2, '0') : '');
         }
 
+        let lastEditedId = null;
+
         // ---- Main view ----
         function updateAll(sourceId) {
+            lastEditedId = sourceId;
             const input = document.getElementById('t_' + sourceId);
             const val = input.value.replace(/[^0-9:]/g, '');
             const match = val.match(/^(\d{1,2}):(\d{2})$/);
@@ -639,6 +683,72 @@
             }
         }
 
+        // ---- Share / URL params ----
+        function showToast(msg) {
+            const el = document.getElementById('toast');
+            el.textContent = msg;
+            el.classList.add('show');
+            setTimeout(() => el.classList.remove('show'), 2000);
+        }
+
+        function shareLink() {
+            const zone = lastEditedId ? zones.find(z => z.id === lastEditedId) : zones[0];
+            if (!zone) return;
+            const input = document.getElementById('t_' + zone.id);
+            if (!input || !input.value.match(/^\d{2}:\d{2}$/)) return;
+
+            const tz = zone.tz === '__fixed__'
+                ? 'fixed' + formatFixedOffset(zone.fixedOffset || 0)
+                : zone.tz;
+            const url = location.origin + location.pathname
+                + '?tz=' + encodeURIComponent(tz)
+                + '&t=' + encodeURIComponent(input.value);
+
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(url).then(() => showToast('Link copied'));
+            } else {
+                prompt('Share this link:', url);
+            }
+        }
+
+        function loadFromUrl() {
+            const params = new URLSearchParams(location.search);
+            const tzParam = params.get('tz');
+            const tParam = params.get('t');
+            if (!tzParam || !tParam) return false;
+
+            const tMatch = tParam.match(/^(\d{1,2}):(\d{2})$/);
+            if (!tMatch) return false;
+            const hours = parseInt(tMatch[1], 10);
+            const minutes = parseInt(tMatch[2], 10);
+            if (hours > 23 || minutes > 59) return false;
+
+            // Determine the source offset
+            let sourceOffset;
+            const fixedMatch = tzParam.match(/^fixed([+-]?\d{1,2}(?::\d{2})?)$/);
+            if (fixedMatch) {
+                sourceOffset = parseFixedOffset(fixedMatch[1]);
+                if (sourceOffset === null) return false;
+            } else {
+                try {
+                    sourceOffset = getOffsetMinutes(tzParam);
+                } catch (e) { return false; }
+            }
+
+            const utcMinutes = hours * 60 + minutes - sourceOffset;
+
+            // Fill all zones from the computed UTC time
+            zones.forEach(zone => {
+                const offset = getOffset(zone);
+                const rawLocal = utcMinutes + offset;
+                const localMinutes = ((rawLocal % 1440) + 1440) % 1440;
+                const h = String(Math.floor(localMinutes / 60)).padStart(2, '0');
+                const m = String(localMinutes % 60).padStart(2, '0');
+                document.getElementById('t_' + zone.id).value = h + ':' + m;
+            });
+            return true;
+        }
+
         // ---- Service Worker ----
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('./sw.js').catch(() => {});
@@ -646,7 +756,7 @@
 
         // ---- Init ----
         renderMain();
-        setNow();
+        if (!loadFromUrl()) setNow();
     </script>
 </body>
 </html>
