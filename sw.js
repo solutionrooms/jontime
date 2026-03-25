@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jontime-v1';
+const CACHE_NAME = 'jontime-v2';
 const ASSETS = ['./index.html', './manifest.json', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', e => {
@@ -17,6 +17,12 @@ self.addEventListener('activate', e => {
 
 self.addEventListener('fetch', e => {
     e.respondWith(
-        caches.match(e.request).then(r => r || fetch(e.request))
+        fetch(e.request)
+            .then(r => {
+                const clone = r.clone();
+                caches.open(CACHE_NAME).then(c => c.put(e.request, clone));
+                return r;
+            })
+            .catch(() => caches.match(e.request))
     );
 });
